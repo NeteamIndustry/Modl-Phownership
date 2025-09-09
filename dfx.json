@@ -1,7 +1,7 @@
 {
   "canisters": {
     "modl-phownership-backend": {
-      "main": "src/modl-phownership-backend/main.mo",
+      "main": "src/modl-phownership-backend/Registry.mo",
       "type": "motoko"
     },
     "modl-phownership-frontend": {
