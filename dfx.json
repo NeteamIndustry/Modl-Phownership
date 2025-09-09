@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "modl-phownership-backend": {
+      "main": "src/modl-phownership-backend/main.mo",
+      "type": "motoko"
+    },
+    "modl-phownership-frontend": {
+      "dependencies": [
+        "modl-phownership-backend"
+      ],
+      "source": [
+        "src/modl-phownership-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "modl-phownership-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
