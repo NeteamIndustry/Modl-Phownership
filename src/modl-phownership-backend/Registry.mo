@@ -129,6 +129,55 @@ persistent actor {
     }
   };
 
+    /// Total jumlah entry di registry (buat pagination)
+  public query func count() : async Nat {
+    var c : Nat = 0;
+    for (_ in db.entries()) { c += 1 };
+    c
+  };
+
+  // ===== Helpers privat (bukan public, bukan async) =====
+  func computeList(offset : Nat, limit : Nat) : [Types.Entry] {
+    // materialize ke array
+    let kvs : [(Text, Types.Entry)] = Iter.toArray(db.entries());
+    let entries : [Types.Entry] = Array.map<(Text, Types.Entry), Types.Entry>(
+      kvs,
+      func (kv : (Text, Types.Entry)) : Types.Entry { kv.1 }
+    );
+
+    // sort by createdAtNs desc (terbaru dulu)
+    let sorted : [Types.Entry] = Array.sort<Types.Entry>(
+      entries,
+      func (a : Types.Entry, b : Types.Entry) {
+        if (a.createdAtNs > b.createdAtNs) { #less }
+        else if (a.createdAtNs < b.createdAtNs) { #greater }
+        else { #equal }
+      }
+    );
+
+    if (offset >= sorted.size()) { return [] };
+
+    let end0 : Nat = offset + limit;
+    let end  : Nat = if (end0 > sorted.size()) sorted.size() else end0;
+    let sliceLen : Nat = end - offset;
+
+    Array.tabulate<Types.Entry>(
+      sliceLen,
+      func (i : Nat) : Types.Entry { sorted[offset + i] }
+    )
+  };
+
+  /// List semua entry, urut terbaru dulu (createdAtNs desc) + pagination
+  public query func listAll(offset : Nat, limit : Nat) : async [Types.Entry] {
+    computeList(offset, limit)
+  };
+
+  /// Ambil N entry terbaru (shorthand)
+  public query func listRecent(n : Nat) : async [Types.Entry] {
+    computeList(0, n)
+  };
+
+
   /// Cari best-match di seluruh registry untuk pHash kandidat (buat kasus screenshot).
   public query func bestMatchByPHash(candidatePHashHex : Text, limit : Nat) : async [Types.Match] {
     // validasi kandidat dulu
