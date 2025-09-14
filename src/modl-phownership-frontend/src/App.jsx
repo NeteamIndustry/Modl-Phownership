@@ -12,6 +12,7 @@ import {
   Mail,
   User,
   ShoppingCart,
+  CircleX,
 } from "lucide-react";
 import { FlickeringGrid } from "./components/magicui/flickering-grid";
 import { LineShadowText } from "./components/magicui/line-shadow-text";
@@ -19,6 +20,7 @@ import { MagicCard } from "./components/magicui/magic-card";
 import { AnimatedGridPattern } from "./components/magicui/animated-grid-pattern";
 import { cn } from "./lib/utils";
 import { modl_phownership_backend } from 'declarations/modl-phownership-backend';
+import { findUser, verifyService } from "./services/verify.js";
 
 function App() {
   const [greeting, setGreeting] = useState("");
@@ -36,39 +38,81 @@ function App() {
   const [results, setResults] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback(async (acceptedFiles) => {
     setUploadedFiles(acceptedFiles);
     setIsProcessing(true);
 
-    // Simulate API call for verification
-    setTimeout(() => {
-      const mockResults = acceptedFiles.map((file, index) => ({
-        id: `result-${index}`,
-        avatar: `/placeholder.svg?height=64&width=64&query=professional photographer avatar`,
-        fullName: index === 0 ? "Sarah Johnson" : "Michael Chen",
-        email:
-          index === 0
-            ? "sarah.johnson@example.com"
-            : "michael.chen@example.com",
-        socialMedia: [
-          {
-            platform: "Instagram",
-            url: "https://instagram.com/sarahjohnsonphoto",
-          },
-          { platform: "Twitter", url: "https://twitter.com/sarahj_photo" },
-          { platform: "LinkedIn", url: "https://linkedin.com/in/sarahjohnson" },
-        ],
-        ecommerceLink:
-          index === 0
-            ? "https://sarahjohnsonprints.com"
-            : "https://michaelchenart.com",
-        verificationStatus: index === 0 ? "verified" : "pending",
-        uploadedImage: URL.createObjectURL(file),
-      }));
+    const file = acceptedFiles[0];
 
-      setResults(mockResults);
-      setIsProcessing(false);
-    }, 2000);
+    const verify = await verifyService(file);
+
+    const result = {
+      id: `result`,
+      avatar: `/placeholder.svg?height=64&width=64&query=professional photographer avatar`,
+      fullName: null,
+      email: null,
+      socialMedia: [
+        {
+          platform: "Instagram",
+          url: "https://instagram.com/sarahjohnsonphoto",
+        },
+        { platform: "Twitter", url: "https://twitter.com/sarahj_photo" },
+        { platform: "LinkedIn", url: "https://linkedin.com/in/sarahjohnson" },
+      ],
+      ecommerceLink: "google.com",
+      verificationStatus: verify.status,
+      uploadedImage: URL.createObjectURL(acceptedFiles[0]),
+    };
+
+    if (verify.status === "VERIFIED") {
+      const user = await findUser(verify.owner_id);
+      result.fullName = user.data.fullName;
+      result.email = user.data.email;
+      console.log(user);
+    }
+
+    setResults([result]);
+    setIsProcessing(false);
+
+    // verifyService(file)
+    //   .then((res) => {
+    //     console.log(res);
+
+    //     // Create results based on the API response
+    //     const mockResults = acceptedFiles.map((file, index) => ({
+    //       id: `result-${index}`,
+    //       avatar: `/placeholder.svg?height=64&width=64&query=professional photographer avatar`,
+    //       fullName: index === 0 ? "Sarah Johnson" : "Michael Chen",
+    //       email:
+    //         index === 0
+    //           ? "sarah.johnson@example.com"
+    //           : "michael.chen@example.com",
+    //       socialMedia: [
+    //         {
+    //           platform: "Instagram",
+    //           url: "https://instagram.com/sarahjohnsonphoto",
+    //         },
+    //         { platform: "Twitter", url: "https://twitter.com/sarahj_photo" },
+    //         {
+    //           platform: "LinkedIn",
+    //           url: "https://linkedin.com/in/sarahjohnson",
+    //         },
+    //       ],
+    //       ecommerceLink:
+    //         index === 0
+    //           ? "https://sarahjohnsonprints.com"
+    //           : "https://michaelchenart.com",
+    //       verificationStatus: res.status,
+    //       uploadedImage: URL.createObjectURL(file),
+    //     }));
+
+    //     setResults(mockResults);
+    //     setIsProcessing(false);
+    //   })
+    //   .catch((error) => {
+    //     console.error("Error verifying file:", error);
+    //     setIsProcessing(false);
+    //   });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -80,12 +124,12 @@ function App() {
   });
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "verified":
         return "bg-green-100 text-green-800 border-green-200";
       case "pending":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "disputed":
+      case "fail":
         return "bg-red-100 text-red-800 border-red-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
@@ -93,11 +137,11 @@ function App() {
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "verified":
         return <CheckCircle className="w-4 h-4" />;
-      case "pending":
-        return <Shield className="w-4 h-4" />;
+      case "fail":
+        return <CircleX className="w-4 h-4" />;
       default:
         return <Shield className="w-4 h-4" />;
     }
@@ -157,7 +201,7 @@ function App() {
           </div>
 
           {/* Upload Area */}
-          <Card className="p-0 w-full shadow-none border-none mb-8 max-w-2xl mx-auto shadow-2xl">
+          <Card className="p-0 w-full border-none mb-8 max-w-2xl mx-auto shadow-2xl">
             <MagicCard
               gradientColor="#ecf4f3"
               gradientFrom="#459187"
@@ -213,7 +257,7 @@ function App() {
           {/* Results */}
           {results.length > 0 && (
             <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-center mb-8">
+              <h3 className="text-2xl font-bold text-center mb-8 mt-18">
                 Verification Results
               </h3>
 
@@ -248,86 +292,88 @@ function App() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="space-y-6">
-                      {/* Owner Information */}
-                      <div className="flex items-start space-x-4 p-4 bg-muted/50 rounded-lg">
-                        <Avatar className="w-12 h-12">
-                          <AvatarImage
-                            src={result.avatar || "/placeholder.svg"}
-                            alt={result.fullName}
-                          />
-                          <AvatarFallback>
-                            {result.fullName
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
+                    {result.fullName && (
+                      <CardContent className="space-y-6">
+                        {/* Owner Information */}
+                        <div className="flex items-start space-x-4 p-4 bg-muted/50 rounded-lg">
+                          <Avatar className="w-12 h-12">
+                            <AvatarImage
+                              src={result.avatar || "/placeholder.svg"}
+                              alt={result.fullName}
+                            />
+                            <AvatarFallback>
+                              {result.fullName
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("").toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
 
-                        <div className="flex-1 space-y-3">
-                          <div>
-                            <h4 className="font-semibold text-lg">
-                              {result.fullName}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              Original Creator
-                            </p>
-                          </div>
-
-                          {/* Contact Information */}
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2 text-sm">
-                              <Mail className="w-4 h-4 text-muted-foreground" />
-                              <a
-                                href={`mailto:${result.email}`}
-                                className="text-primary hover:underline"
-                              >
-                                {result.email}
-                              </a>
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <h4 className="font-semibold text-lg">
+                                {result.fullName}
+                              </h4>
+                              <p className="text-sm text-muted-foreground">
+                                Original Creator
+                              </p>
                             </div>
 
-                            {/* Social Media Links */}
-                            <div className="flex flex-wrap gap-2">
-                              {result.socialMedia.map((social, index) => (
-                                <Button
-                                  key={index}
-                                  variant="outline"
-                                  size="sm"
-                                  asChild
+                            {/* Contact Information */}
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2 text-sm">
+                                <Mail className="w-4 h-4 text-muted-foreground" />
+                                <a
+                                  href={`mailto:${result.email}`}
+                                  className="text-primary hover:underline"
                                 >
-                                  <a
-                                    href={social.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs"
-                                  >
-                                    <ExternalLink className="w-3 h-3 mr-1" />
-                                    {social.platform}
-                                  </a>
-                                </Button>
-                              ))}
-                            </div>
+                                  {result.email}
+                                </a>
+                              </div>
 
-                            {/* E-commerce Link */}
-                            <Button
-                              variant="default"
-                              size="sm"
-                              asChild
-                              className="w-full mt-3"
-                            >
-                              <a
-                                href={result.ecommerceLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              {/* Social Media Links */}
+                              <div className="flex flex-wrap gap-2">
+                                {result.socialMedia.map((social, index) => (
+                                  <Button
+                                    key={index}
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                  >
+                                    <a
+                                      href={social.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs"
+                                    >
+                                      <ExternalLink className="w-3 h-3 mr-1" />
+                                      {social.platform}
+                                    </a>
+                                  </Button>
+                                ))}
+                              </div>
+
+                              {/* E-commerce Link */}
+                              <Button
+                                variant="default"
+                                size="sm"
+                                asChild
+                                className="w-full mt-3"
                               >
-                                <ShoppingCart className="w-4 h-4 mr-2" />
-                                Visit Store
-                              </a>
-                            </Button>
+                                <a
+                                  href={result.ecommerceLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <ShoppingCart className="w-4 h-4 mr-2" />
+                                  Visit Store
+                                </a>
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
+                      </CardContent>
+                    )}
                   </Card>
                 ))}
               </div>
